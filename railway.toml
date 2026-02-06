@@ -1,0 +1,13 @@
+# Railway configuration file
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "python entrypoint.py"
+
+[variables]
+# Default values for Railway deployment
+FRONTEND_URL = "https://your-frontend-url.vercel.app"  # Replace with your actual Vercel URL
+BACKEND_URL = "${RAILWAY_PUBLIC_DOMAIN}"
+# DATABASE_URL will be provided by Railway PostgreSQL add-on

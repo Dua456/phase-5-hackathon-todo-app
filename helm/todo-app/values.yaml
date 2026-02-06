@@ -1,0 +1,80 @@
+# Default values for todo-app
+
+# Backend configuration
+backend:
+  image:
+    repository: duashakir/todo-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 8000
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  env:
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: todo-db-secret
+          key: database_url
+    - name: GROQ_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: groq-api-key
+          key: api_key
+    - name: BACKEND_URL
+      value: "http://todo.local"  # Use the ingress domain for OAuth callbacks
+    - name: FRONTEND_URL
+      value: "http://todo.local"  # Use the ingress domain
+    - name: GOOGLE_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: google-oauth-secret
+          key: client_id
+    - name: GOOGLE_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: google-oauth-secret
+          key: client_secret
+    - name: GITHUB_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: github-oauth-secret
+          key: client_id
+    - name: GITHUB_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: github-oauth-secret
+          key: client_secret
+
+# Frontend configuration
+frontend:
+  image:
+    repository: duashakir/todo-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 80
+    targetPort: 3000
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  env:
+    - name: NEXT_PUBLIC_API_BASE_URL
+      value: "/api"  # Use relative path to /api, will be handled by ingress
+
+# Service configuration
+backendService:
+  type: LoadBalancer  # Changed to LoadBalancer for OAuth callbacks
+frontendService:
+  type: LoadBalancer
