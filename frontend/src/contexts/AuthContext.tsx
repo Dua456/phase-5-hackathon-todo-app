@@ -30,114 +30,131 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Cache for user profile to avoid repeated API calls
+let userProfileCache: UserProfile | null = null;
+let cacheTimestamp: number | null = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const router = useRouter();
 
-  const fetchUserProfile = async () => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://web-production-3d8a1.up.railway.app';
-      const response = await makeAuthenticatedRequest(`${apiUrl}/auth/me`);
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-        console.log('Successfully fetched user profile:', userData);
-      } else {
-        console.error('Failed to fetch user profile:', response.status, response.statusText);
-        // Log the response body for debugging
-        let errorBody = '';
-        try {
-          errorBody = await response.text();
-          console.error('Error response body:', errorBody);
-        } catch (textError) {
-          console.error('Could not read error response body:', textError);
-        }
+  const fetchUserProfileWithRetry = async (maxRetries = 3, delay = 1000) => {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-        // Fallback to basic user data from token if profile fetch fails
-        const token = getAuthToken();
-        if (token) {
-          try {
-            const parts = token.split('.');
-            if (parts.length === 3) {
-              const payload = parts[1];
-              // Add padding if needed for base64 decoding
-              let base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-              const missingPadding = base64.length % 4;
-              if (missingPadding !== 0) {
-                base64 += '='.repeat(4 - missingPadding);
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://web-production-3d8a1.up.railway.app';
+        const response = await makeAuthenticatedRequest(`${apiUrl}/auth/me`, {
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+          // Update cache
+          userProfileCache = userData;
+          cacheTimestamp = Date.now();
+          console.log('Successfully fetched user profile:', userData);
+          return userData;
+        } else {
+          console.error(`Failed to fetch user profile (attempt ${attempt + 1}/${maxRetries + 1}):`, response.status, response.statusText);
+          if (attempt === maxRetries) {
+            // If all retries failed, try to decode from token as fallback
+            const token = getAuthToken();
+            if (token) {
+              try {
+                const parts = token.split('.');
+                if (parts.length === 3) {
+                  const payload = parts[1];
+                  let base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+                  const missingPadding = base64.length % 4;
+                  if (missingPadding !== 0) {
+                    base64 += '='.repeat(4 - missingPadding);
+                  }
+
+                  const decodedPayload = atob(base64);
+                  const parsedPayload = JSON.parse(decodedPayload);
+
+                  const fallbackUser = {
+                    id: parsedPayload.sub,
+                    email: parsedPayload.email || 'Email not available',
+                    provider: parsedPayload.provider || 'email',
+                    first_name: parsedPayload.first_name || parsedPayload.name || '',
+                    last_name: parsedPayload.last_name || ''
+                  } as UserProfile;
+
+                  setUser(fallbackUser);
+                  return fallbackUser;
+                }
+              } catch (tokenError) {
+                console.error('Token decode error after retries:', tokenError);
               }
-
-              const decodedPayload = atob(base64);
-              const parsedPayload = JSON.parse(decodedPayload);
-              setUser({
-                id: parsedPayload.sub,
-                email: parsedPayload.email || '', // Use email from token if available
-                provider: parsedPayload.provider || 'email',
-                first_name: parsedPayload.first_name || '',
-                last_name: parsedPayload.last_name || ''
-              } as UserProfile);
             }
-          } catch (error) {
-            console.error('Token decode error:', error);
-            // Set minimal user data as last resort
-            setUser({
-              id: 'unknown',
-              email: 'Email not available',
-              provider: 'unknown'
-            } as UserProfile);
           }
         }
-      }
-    } catch (error) {
-      console.error('Network error fetching user profile:', error);
-      // If the request failed completely, try to decode token as fallback
-      const token = getAuthToken();
-      if (token) {
-        try {
-          const parts = token.split('.');
-          if (parts.length === 3) {
-            const payload = parts[1];
-            // Add padding if needed for base64 decoding
-            let base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-            const missingPadding = base64.length % 4;
-            if (missingPadding !== 0) {
-              base64 += '='.repeat(4 - missingPadding);
-            }
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        console.error(`Error fetching user profile (attempt ${attempt + 1}/${maxRetries + 1}):`, error);
 
-            const decodedPayload = atob(base64);
-            const parsedPayload = JSON.parse(decodedPayload);
-            setUser({
-              id: parsedPayload.sub,
-              email: parsedPayload.email || '', // Use email from token if available
-              provider: parsedPayload.provider || 'email',
-              first_name: parsedPayload.first_name || '',
-              last_name: parsedPayload.last_name || ''
-            } as UserProfile);
+        if (attempt === maxRetries) {
+          // If all retries failed, try to decode from token as fallback
+          const token = getAuthToken();
+          if (token) {
+            try {
+              const parts = token.split('.');
+              if (parts.length === 3) {
+                const payload = parts[1];
+                let base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+                const missingPadding = base64.length % 4;
+                if (missingPadding !== 0) {
+                  base64 += '='.repeat(4 - missingPadding);
+                }
+
+                const decodedPayload = atob(base64);
+                const parsedPayload = JSON.parse(decodedPayload);
+
+                const fallbackUser = {
+                  id: parsedPayload.sub,
+                  email: parsedPayload.email || 'Email not available',
+                  provider: parsedPayload.provider || 'email',
+                  first_name: parsedPayload.first_name || parsedPayload.name || '',
+                  last_name: parsedPayload.last_name || ''
+                } as UserProfile;
+
+                setUser(fallbackUser);
+                return fallbackUser;
+              }
+            } catch (tokenError) {
+              console.error('Token decode error after retries:', tokenError);
+            }
           }
-        } catch (tokenError) {
-          console.error('Token decode error:', tokenError);
-          // Set minimal user data as last resort
-          setUser({
-            id: 'unknown',
-            email: 'Email not available',
-            provider: 'unknown'
-          } as UserProfile);
+        } else {
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, attempt))); // Exponential backoff
         }
       }
     }
   };
 
   const checkAuthStatus = async () => {
+    if (typeof window === 'undefined') {
+      // Don't run on server side
+      return;
+    }
+
     if (isAuthenticated()) {
       const token = getAuthToken();
       if (token) {
         try {
-          // First decode token to get basic user info
+          // Set initial user data from token (optimistic update)
           const parts = token.split('.');
           if (parts.length === 3) {
             const payload = parts[1];
-            // Add padding if needed for base64 decoding
             let base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
             const missingPadding = base64.length % 4;
             if (missingPadding !== 0) {
@@ -147,60 +164,116 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const decodedPayload = atob(base64);
             const parsedPayload = JSON.parse(decodedPayload);
 
-            // Set initial user data from token (optimistic update)
-            setUser({
+            // Update user with data from token immediately
+            const tokenUserData = {
               id: parsedPayload.sub,
-              email: '', // Will fetch from profile API
-              provider: parsedPayload.provider || 'email'
-            } as UserProfile);
+              email: parsedPayload.email || 'Email not available',
+              provider: parsedPayload.provider || 'email',
+              first_name: parsedPayload.first_name || parsedPayload.name || '',
+              last_name: parsedPayload.last_name || ''
+            } as UserProfile;
 
-            // Then fetch complete user profile in background without blocking
-            setTimeout(async () => {
-              try {
-                await fetchUserProfile();
-              } catch (profileError) {
-                console.error('Failed to fetch profile, keeping basic token info:', profileError);
-              }
-            }, 0); // Non-blocking execution
+            setUser(tokenUserData);
+            // Don't wait for profile fetch to complete
+            setLoading(false);
+
+            // Fetch complete profile in background without blocking
+            fetchUserProfileWithRetry().catch(profileError => {
+              console.error('Background profile fetch failed:', profileError);
+            });
           }
         } catch (error) {
           console.error('Token decode error:', error);
           setUser(null);
+          setLoading(false);
         }
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    } else {
+      setUser(null);
+      setLoading(false);
+    }
+  };
+
+  // Initialize auth state on client side only
+  useEffect(() => {
+    // Try to get user from cache first
+    if (userProfileCache && cacheTimestamp && Date.now() - cacheTimestamp < CACHE_DURATION) {
+      setUser(userProfileCache);
+      setLoading(false);
+      return;
+    }
+
+    // Try to get basic user info from token if available
+    const token = getAuthToken();
+    if (token) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = parts[1];
+          let base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+          const missingPadding = base64.length % 4;
+          if (missingPadding !== 0) {
+            base64 += '='.repeat(4 - missingPadding);
+          }
+
+          const decodedPayload = atob(base64);
+          const parsedPayload = JSON.parse(decodedPayload);
+
+          const tokenUser = {
+            id: parsedPayload.sub,
+            email: parsedPayload.email || 'Email not available',
+            provider: parsedPayload.provider || 'email',
+            first_name: parsedPayload.first_name || '',
+            last_name: parsedPayload.last_name || ''
+          } as UserProfile;
+
+          setUser(tokenUser);
+
+          // Fetch complete profile in background without blocking
+          fetchUserProfileWithRetry().catch(profileError => {
+            console.error('Background profile fetch failed:', profileError);
+          });
+        }
+      } catch (error) {
+        console.error('Token decode error during initialization:', error);
       }
     } else {
       setUser(null);
     }
     setLoading(false);
-  };
+  }, []); // Only run on client side after component mounts
 
   const refreshUserProfile = async () => {
     if (isAuthenticated()) {
       try {
-        await fetchUserProfile();
+        await fetchUserProfileWithRetry();
       } catch (error) {
         console.error('Failed to refresh user profile:', error);
-        // Keep the basic user info from token if profile fetch fails
       }
     }
   };
 
-  const login = async (token: string) => {
-    localStorage.setItem('token', token);
-    await checkAuthStatus(); // Changed to async to ensure profile is loaded
+  const login = (token: string) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('token', token);
+    }
+    // Clear cache on login
+    userProfileCache = null;
+    cacheTimestamp = null;
+    checkAuthStatus(); // Don't await to avoid blocking
   };
 
   const logout = () => {
     removeAuthToken();
+    // Clear cache on logout
+    userProfileCache = null;
+    cacheTimestamp = null;
     setUser(null);
     router.push('/login');
   };
-
-  useEffect(() => {
-    // Set loading to true initially
-    setLoading(true);
-    checkAuthStatus();
-  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, checkAuthStatus, refreshUserProfile }}>

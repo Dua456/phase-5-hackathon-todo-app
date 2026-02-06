@@ -36,7 +36,7 @@ A modern, AI-powered todo application with authentication, chat interface, and p
 ### Prerequisites
 - Node.js 18+ for frontend
 - Python 3.9+ for backend
-- PostgreSQL (or NeonDB account for cloud database)
+- PostgreSQL (or you can use SQLite for local development)
 - Git
 
 ### Backend Setup
@@ -59,7 +59,7 @@ pip install -r requirements.txt
 
 4. Create a `.env` file in the backend directory with the following variables:
 ```env
-DATABASE_URL=postgresql://username:password@localhost:5432/todo_app
+DATABASE_URL=sqlite:///./todo_app.db
 SECRET_KEY=4fca6c8e639aaad8d373ac05b64b18c792a6d7375fdebe4c09765f9b31c2a1d7
 GROQ_API_KEY=your-groq-api-key
 FRONTEND_URL=http://localhost:3000
@@ -71,7 +71,14 @@ GITHUB_CLIENT_SECRET=your-github-client-secret
 SENTRY_DSN=your-sentry-dsn-if-enabled
 ```
 
-5. Run the backend:
+For local development, you can use SQLite by setting `DATABASE_URL=sqlite:///./todo_app.db`. For production, use PostgreSQL.
+
+5. Initialize the database:
+```bash
+python init_db.py
+```
+
+6. Run the backend:
 ```bash
 uvicorn main:app --reload --port 8000
 ```
@@ -90,7 +97,8 @@ npm install
 
 3. Create a `.env.local` file in the frontend directory with the following variables:
 ```env
-NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NODE_ENV=development
 NEXT_PUBLIC_SENTRY_DSN=your-sentry-dsn-if-enabled
 ```
 
@@ -100,6 +108,14 @@ npm run dev
 ```
 
 The application will be available at `http://localhost:3000`.
+
+### Complete Local Development
+To run the full application with dashboard, login, and all features:
+
+1. Start the backend server first: `cd backend && uvicorn main:app --reload --port 8000`
+2. In a new terminal, start the frontend: `cd frontend && npm run dev`
+3. Open your browser to `http://localhost:3000`
+4. Register an account or log in to access the dashboard and all features
 
 ## ☁️ Production Deployment
 

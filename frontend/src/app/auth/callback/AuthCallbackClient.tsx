@@ -34,14 +34,18 @@ export default function AuthCallbackClient() {
         console.log('Received provider:', provider);
 
         // Store token & provider
-        localStorage.setItem('token', token);
-        if (provider) {
-          localStorage.setItem('authProvider', provider);
-          console.log('Provider stored:', provider);
+        if (typeof window !== 'undefined' && token) {
+          localStorage.setItem('token', token);
+          if (provider) {
+            localStorage.setItem('authProvider', provider);
+            console.log('Provider stored:', provider);
+          }
         }
 
         // Update auth context
-        await login(token);
+        if (token) {
+          await login(token);
+        }
 
         // Small delay (for localStorage sync)
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -51,7 +55,9 @@ export default function AuthCallbackClient() {
         // Use a more reliable redirect after ensuring the context is updated
         // Small delay to ensure token is stored and context is updated
         setTimeout(() => {
-          window.location.href = '/dashboard';
+          if (typeof window !== 'undefined') {
+            router.push('/dashboard');
+          }
         }, 500);
       } catch (err) {
         console.error('Auth callback error:', err);

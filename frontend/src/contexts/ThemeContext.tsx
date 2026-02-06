@@ -17,8 +17,44 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<'light' | 'dark' | 'auto'>('dark');
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // Load theme preference from user profile
+  // Initialize theme on mount
   useEffect(() => {
+    const initializeTheme = () => {
+      if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+        // Don't run on server side
+        return;
+      }
+
+      // Check for saved theme in localStorage first
+      const savedTheme = localStorage.getItem('theme_preference') as 'light' | 'dark' | 'auto' | null;
+
+      if (savedTheme) {
+        setThemeState(savedTheme);
+        applyTheme(savedTheme);
+      } else if (user?.theme_preference) {
+        // Use theme from user profile if available
+        const userTheme = user.theme_preference as 'light' | 'dark' | 'auto';
+        setThemeState(userTheme);
+        applyTheme(userTheme);
+      } else {
+        // Fallback to system preference or default
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const fallbackTheme = systemPrefersDark ? 'dark' : 'light';
+        setThemeState(fallbackTheme);
+        applyTheme(fallbackTheme);
+      }
+    };
+
+    initializeTheme();
+  }, []); // Only run on initial mount
+
+  // Load theme preference from user profile when user changes
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      // Don't run on server side
+      return;
+    }
+
     const loadThemePreference = async () => {
       if (user?.id) {
         try {
@@ -27,26 +63,28 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           if (response.ok) {
             const userData = await response.json();
             const userTheme = userData.theme_preference || 'dark';
-            setThemeState(userTheme);
 
-            // Apply the theme
-            applyTheme(userTheme);
+            // Update state and apply theme if it differs from current
+            if (userTheme !== theme) {
+              setThemeState(userTheme);
+              applyTheme(userTheme);
+            }
           }
         } catch (error) {
           console.error('Error loading theme preference:', error);
-          // Fallback to system preference or dark mode
-          const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          const fallbackTheme = systemPrefersDark ? 'dark' : 'light';
-          setThemeState(fallbackTheme);
-          applyTheme(fallbackTheme);
         }
       }
     };
 
     loadThemePreference();
-  }, [user?.id]);
+  }, [user?.id]); // Only when user ID changes
 
   const applyTheme = (theme: 'light' | 'dark' | 'auto') => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      // Don't run on server side
+      return;
+    }
+
     const html = document.documentElement;
 
     // Remove existing theme classes
@@ -71,13 +109,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
 
     setIsDarkMode(isDark);
+
+    // Also update localStorage for persistence
+    localStorage.setItem('theme_preference', theme);
   };
 
   const setTheme = async (newTheme: 'light' | 'dark' | 'auto') => {
     setThemeState(newTheme);
     applyTheme(newTheme);
 
-    // Save theme preference to user profile
+    // Save theme preference to user profile if user is authenticated
     if (user?.id) {
       try {
         await makeAuthenticatedRequest(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
@@ -91,6 +132,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         });
       } catch (error) {
         console.error('Error saving theme preference:', error);
+        // Still keep the theme in localStorage even if API fails
+        if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+          localStorage.setItem('theme_preference', newTheme);
+        }
+      }
+    } else {
+      // If user is not authenticated, save to localStorage
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+        localStorage.setItem('theme_preference', newTheme);
       }
     }
   };

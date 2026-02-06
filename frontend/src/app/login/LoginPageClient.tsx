@@ -32,7 +32,7 @@ export default function LoginPage() {
       if (response.ok) {
         const data = await response.json();
         login(data.access_token); // Use auth context to login
-        window.location.href = '/'; // Redirect using window.location since router might not be available during SSR
+        window.location.href = '/dashboard'; // Redirect to dashboard after successful login
       } else {
         const errorData = await response.json();
         setError(errorData.detail || 'Login failed');

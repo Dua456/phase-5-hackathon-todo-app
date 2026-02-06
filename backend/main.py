@@ -747,6 +747,91 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+@app.get("/auth/me/fast", response_model=UserResponse)
+def get_current_user_info_fast(
+    credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme)
+):
+    """Get current authenticated user info with minimal DB query for faster response"""
+    token = credentials.credentials
+    try:
+        payload = verify_token(token)
+    except Exception as e:
+        logger.error(f"Token verification failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id: str = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        user_uuid = uuid.UUID(user_id)
+    except ValueError:
+        logger.error(f"Invalid user ID format: {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user ID format",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Create a dedicated session for this function to avoid conflicts
+    from db import get_session
+    session_gen = get_session()
+    session = next(session_gen)
+
+    try:
+        # Only fetch essential fields to reduce query time
+        statement = select(User.id, User.email, User.first_name, User.last_name, User.provider, User.created_at, User.last_login).where(User.id == user_uuid)
+        result = session.exec(statement).first()
+
+        if result is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Convert to User object for response compatibility
+        user_data = dict(zip(['id', 'email', 'first_name', 'last_name', 'provider', 'created_at', 'last_login'], result))
+        user = User(**user_data)
+        return user
+    except Exception as e:
+        logger.error(f"Database error when fetching user {user_id}: {str(e)}")
+        # For Railway cold start issues, try to refresh the engine and retry once
+        from db import refresh_engine
+        refresh_engine()  # Refresh the engine to get a new connection
+        try:
+            statement = select(User.id, User.email, User.first_name, User.last_name, User.provider, User.created_at, User.last_login).where(User.id == user_uuid)
+            result = session.exec(statement).first()
+
+            if result is None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User not found",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
+            user_data = dict(zip(['id', 'email', 'first_name', 'last_name', 'provider', 'created_at', 'last_login'], result))
+            user = User(**user_data)
+            return user
+        except Exception as retry_e:
+            logger.error(f"Retry failed for user {user_id}: {str(retry_e)}")
+            session.close()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database connection error, please try again",
+            )
+    finally:
+        session.close()
+
+
 @app.get("/admin/users", response_model=list[UserResponse])
 def get_all_users(
     current_user: User = Depends(get_current_user),

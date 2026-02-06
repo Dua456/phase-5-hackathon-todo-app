@@ -10,3 +10,11 @@ startCommand = "python entrypoint.py"
 # Default values for Railway deployment
 FRONTEND_URL = "https://your-frontend-url.vercel.app"  # Replace with your actual Vercel URL
 BACKEND_URL = "${RAILWAY_PUBLIC_DOMAIN}"
+# Database pool settings for better performance
+SQLALCHEMY_POOL_SIZE = "10"
+SQLALCHEMY_MAX_OVERFLOW = "20"
+SQLALCHEMY_POOL_TIMEOUT = "30"
+SQLALCHEMY_POOL_RECYCLE = "3600"
+# Additional performance settings
+WORKERS = "2"
+TIMEOUT = "300"

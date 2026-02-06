@@ -2,29 +2,42 @@
 
 // Check if user is authenticated
 export const isAuthenticated = (): boolean => {
-  const token = localStorage.getItem('token');
-  return !!token;
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('token');
+    return !!token;
+  }
+  return false;
 };
 
 // Get the authentication token
 export const getAuthToken = (): string | null => {
-  return localStorage.getItem('token');
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('token');
+  }
+  return null;
 };
 
 // Set the authentication token
 export const setAuthToken = (token: string): void => {
-  localStorage.setItem('token', token);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('token', token);
+  }
 };
 
 // Remove the authentication token (logout)
 export const removeAuthToken = (): void => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('authProvider');
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('token');
+    localStorage.removeItem('authProvider');
+  }
 };
 
 // Get the authentication provider
 export const getAuthProvider = (): string | null => {
-  return localStorage.getItem('authProvider');
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('authProvider');
+  }
+  return null;
 };
 
 // Get user info from token (decode JWT payload)
@@ -94,7 +107,9 @@ export const makeAuthenticatedRequest = async (
   // If token is expired or invalid, redirect to login
   if (response.status === 401) {
     removeAuthToken();
-    window.location.href = '/login';
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
   }
 
   return response;
@@ -161,17 +176,23 @@ export const registerWithEmailAndPassword = async (
 // Logout
 export const logout = (): void => {
   removeAuthToken();
-  window.location.href = '/login';
+  if (typeof window !== 'undefined') {
+    window.location.href = '/login';
+  }
 };
 
 // Initiate Google OAuth flow
 export const initiateGoogleAuth = (): void => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://web-production-3d8a1.up.railway.app';
-  window.location.href = `${apiUrl}/auth/google`;
+  if (typeof window !== 'undefined') {
+    window.location.href = `${apiUrl}/auth/google`;
+  }
 };
 
 // Initiate GitHub OAuth flow
 export const initiateGitHubAuth = (): void => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://web-production-3d8a1.up.railway.app';
-  window.location.href = `${apiUrl}/auth/github`;
+  if (typeof window !== 'undefined') {
+    window.location.href = `${apiUrl}/auth/github`;
+  }
 };

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import TopBar from '@/components/TopBar';
@@ -9,7 +10,73 @@ import TaskForm from '@/components/TaskForm';
 import LiveTaskView from '@/components/LiveTaskView';
 import { AdvancedChatInterface } from '@/components/AdvancedChatInterface';
 
+// Skeleton loader components
+const SkeletonCard = () => (
+  <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-2xl">
+    <div className="animate-pulse">
+      <div className="h-4 bg-gray-700 rounded w-3/4 mb-4"></div>
+      <div className="h-8 bg-gray-700 rounded w-1/2"></div>
+    </div>
+  </div>
+);
+
+const SkeletonTaskForm = () => (
+  <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-2xl h-full">
+    <div className="animate-pulse">
+      <div className="h-6 bg-gray-700 rounded w-1/2 mb-6"></div>
+      <div className="space-y-4">
+        <div className="h-12 bg-gray-700 rounded-xl"></div>
+        <div className="h-32 bg-gray-700 rounded-xl"></div>
+        <div className="h-10 bg-gray-700 rounded-xl w-1/4 ml-auto"></div>
+      </div>
+    </div>
+  </div>
+);
+
+const SkeletonTaskView = () => (
+  <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-2xl">
+    <div className="animate-pulse">
+      <div className="h-6 bg-gray-700 rounded w-1/3 mb-6"></div>
+      <div className="space-y-3">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="p-4 rounded-xl border bg-white/5 border-white/20">
+            <div className="flex items-center space-x-3">
+              <div className="w-5 h-5 rounded border border-gray-400"></div>
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-gray-700 rounded w-3/4"></div>
+                <div className="h-3 bg-gray-700 rounded w-1/2"></div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+const SkeletonAIAssistant = () => (
+  <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-2xl">
+    <div className="animate-pulse">
+      <div className="h-6 bg-gray-700 rounded w-1/3 mb-6"></div>
+      <div className="h-[400px] flex flex-col justify-between">
+        <div className="space-y-3">
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="max-w-[80%] rounded-2xl p-4 bg-white/10">
+              <div className="h-4 bg-gray-700 rounded w-full mb-2"></div>
+              <div className="h-4 bg-gray-700 rounded w-3/4"></div>
+            </div>
+          ))}
+        </div>
+        <div className="h-12 bg-gray-700 rounded-xl"></div>
+      </div>
+    </div>
+  </div>
+);
+
+import { useRouter } from 'next/navigation';
+
 export default function DashboardPage() {
+  const router = useRouter();
   const { user, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('All');
@@ -18,8 +85,75 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex">
+        {/* Sidebar Skeleton */}
+        <div className="hidden lg:block w-64 bg-black/20 backdrop-blur-lg border-r border-white/10 animate-pulse">
+          <div className="p-4">
+            <div className="h-8 bg-gray-700 rounded mb-8"></div>
+            <div className="space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-10 bg-gray-700 rounded-lg"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Top Bar Skeleton */}
+          <div className="p-6 border-b border-white/10 bg-black/20 animate-pulse">
+            <div className="flex justify-between items-center">
+              <div className="h-6 bg-gray-700 rounded w-1/4"></div>
+              <div className="h-10 w-10 bg-gray-700 rounded-full"></div>
+            </div>
+          </div>
+
+          {/* Main Dashboard Area */}
+          <main className="flex-1 p-6 overflow-auto">
+            <div className="max-w-7xl mx-auto">
+              {/* Stats Cards Skeleton */}
+              <div className="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-2xl">
+                    <div className="animate-pulse">
+                      <div className="h-4 bg-gray-700 rounded w-24 mb-4"></div>
+                      <div className="h-8 bg-gray-700 rounded w-16"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Filters Section Skeleton */}
+              <div className="mb-8 bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-2xl animate-pulse">
+                <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+                  <div className="w-full md:w-80 h-12 bg-gray-700 rounded-xl"></div>
+                  <div className="flex flex-wrap gap-2">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="h-10 bg-gray-700 rounded-lg w-16"></div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Task Form, Live Task View, and AI Assistant Chat Skeleton */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Task Form - Left Column */}
+                <div className="lg:col-span-1">
+                  <SkeletonTaskForm />
+                </div>
+
+                {/* Live Task View and AI Assistant - Right Column */}
+                <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Live Task View */}
+                  <SkeletonTaskView />
+
+                  {/* AI Assistant Chat */}
+                  <SkeletonAIAssistant />
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
       </div>
     );
   }
@@ -27,7 +161,7 @@ export default function DashboardPage() {
   if (!user) {
     // Redirect to login if not authenticated
     if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+      router.push('/login');
     }
     return null;
   }
